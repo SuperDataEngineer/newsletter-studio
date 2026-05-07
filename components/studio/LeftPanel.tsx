@@ -176,7 +176,7 @@ export function LeftPanel() {
         </div>
       </div>
 
-      {/* Generate button */}
+      {/* Generate button — immediately after Research Sources */}
       <button
         onClick={handleGenerateBrief}
         disabled={briefLoading}
@@ -187,7 +187,7 @@ export function LeftPanel() {
           color: "#fff", fontWeight: 600, fontSize: 13.5,
           border: "none", cursor: briefLoading ? "not-allowed" : "pointer",
           transition: "background 0.15s",
-          marginTop: "auto",
+          marginBottom: 0,
         }}
       >
         <Sparkles size={15} />
