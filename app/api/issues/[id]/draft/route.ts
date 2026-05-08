@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processDraftJob } from "@/lib/workflows/generateDraft";
 
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const body = await req.json();

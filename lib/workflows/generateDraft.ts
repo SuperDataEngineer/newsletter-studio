@@ -70,7 +70,7 @@ export async function processDraftJob(payload: DraftJobPayload): Promise<DraftJo
 
   const response = await client.messages.create({
     model: MODEL_FAST,
-    max_tokens: 8000,
+    max_tokens: 3000,
     system,
     messages: [{ role: "user", content: user }],
   });

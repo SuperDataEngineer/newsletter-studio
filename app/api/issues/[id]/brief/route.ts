@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/db/client";
 import { processBriefJob } from "@/lib/workflows/generateBrief";
 
+export const maxDuration = 60;
+
 // POST /api/issues/[id]/brief — generate research brief
 // Pass id="new" to create the issue atomically on first run.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
