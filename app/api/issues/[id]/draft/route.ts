@@ -20,7 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     return NextResponse.json(result);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = err instanceof Error ? err.message : (err as Record<string, unknown>)?.message ?? JSON.stringify(err);
     console.error("[draft] error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }

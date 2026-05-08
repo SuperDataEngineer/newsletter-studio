@@ -15,7 +15,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         .from("newsletter_issues")
         .insert({
           topic: body.topic,
-          industry: body.industry ?? "Not industry-specific",
           newsletter_type: body.newsletterType,
           audience: body.audience,
           tone: body.tone,
@@ -36,7 +35,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         .from("newsletter_issues")
         .update({
           topic: body.topic,
-          industry: body.industry ?? "Not industry-specific",
           newsletter_type: body.newsletterType,
           audience: body.audience,
           tone: body.tone,
@@ -67,7 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     return NextResponse.json({ issueId, brief });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = err instanceof Error ? err.message : (err as Record<string, unknown>)?.message ?? JSON.stringify(err);
     console.error("[brief] error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
