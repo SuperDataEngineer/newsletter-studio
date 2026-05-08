@@ -1,21 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { processDraftJob } from "@/lib/workflows/generateDraft";
 
-// POST /api/issues/[id]/draft — trigger draft generation (SSE stream)
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const _body = await req.json();
+  try {
+    const body = await req.json();
 
-  // TODO: stream Claude output using delimiter convention <<<HOOK>>> etc.
-  const fixture = {
-    issueId: params.id,
-    hook: "Placeholder hook — wire Claude streaming in Phase 3.",
-    body: "Placeholder body.",
-    takeaways: "Placeholder takeaways.",
-    cta: "Placeholder CTA.",
-    subjectLines: ["Subject 1", "Subject 2", "Subject 3"],
-    previewTexts: ["Preview 1", "Preview 2", "Preview 3"],
-    llmModel: "stub",
-    generatedAt: new Date().toISOString(),
-  };
+    if (!body.brief) {
+      return NextResponse.json({ error: "brief is required in request body" }, { status: 400 });
+    }
 
-  return NextResponse.json(fixture);
+    const result = await processDraftJob({
+      issueId: params.id,
+      brief: body.brief,
+      newsletterType: body.newsletterType,
+      audience: body.audience,
+      tone: body.tone,
+      length: body.length,
+    });
+
+    return NextResponse.json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[draft] error:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

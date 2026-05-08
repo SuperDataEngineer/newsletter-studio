@@ -2,28 +2,61 @@
 
 import { Sparkles, Check, BookOpen, List, Lightbulb } from "lucide-react";
 import { useStudio } from "@/store/useStudio";
+import { useScoring } from "@/hooks/useScoring";
 import { SourceCard } from "./SourceCard";
 import { DraftBlock } from "./DraftBlock";
 
 export function CenterPanel() {
   const {
+    issueId,
     brief, briefLoading,
     title, setTitle,
     subtitle, setSubtitle,
     subjectLines, previewTexts,
     selectedSubjectIdx, setSelectedSubjectIdx,
     draftLoading, setDraftLoading,
+    setDraftSection, setSubjectLines, setPreviewTexts,
+    newsletterType, audience, tone, length,
     savedAt,
   } = useStudio();
 
-  const handleGenerateDraft = () => {
+  const { scoreNow } = useScoring();
+
+  const handleGenerateDraft = async () => {
+    if (!brief || !issueId) return;
     setDraftLoading(true);
-    // TODO: call POST /api/issues/[id]/draft
-    setTimeout(() => setDraftLoading(false), 1200);
+    try {
+      const res = await fetch(`/api/issues/${issueId}/draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brief, newsletterType, audience, tone, length }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Draft generation failed");
+      }
+
+      const { draft, title: newTitle, subtitle: newSubtitle } = await res.json();
+      setDraftSection("hook", draft.hook);
+      setDraftSection("body", draft.body);
+      setDraftSection("takeaways", draft.takeaways);
+      setDraftSection("cta", draft.cta);
+      setSubjectLines(draft.subjectLines);
+      setPreviewTexts(draft.previewTexts);
+      if (newTitle) setTitle(newTitle);
+      if (newSubtitle) setSubtitle(newSubtitle);
+      // Score in background — don't await, don't block the UI
+      scoreNow();
+    } catch (err) {
+      console.error("[draft]", err);
+    } finally {
+      setDraftLoading(false);
+    }
   };
 
   return (
-    <main style={{ overflowY: "auto", padding: "20px 24px", borderRight: "1px solid var(--border)" }}>
+    <main style={{ overflowY: "auto", padding: "10px 10px", borderRight: "1px solid var(--border)" }}>
 
       {/* ── Research Brief ──────────────────────────────────────────── */}
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 18 }}>

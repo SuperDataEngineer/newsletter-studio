@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Settings, Upload } from "lucide-react";
+import { BookOpen, Upload } from "lucide-react";
 
 const NAV_TABS = ["Workspace", "History", "Templates", "Settings"];
 
@@ -75,23 +75,6 @@ export function Topbar() {
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center" }}>
-        <button
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "8px 14px",
-            borderRadius: 8,
-            background: "none",
-            border: "1px solid var(--border)",
-            color: "var(--muted)",
-            fontWeight: 500,
-            fontSize: 13.5,
-          }}
-        >
-          <Settings size={15} />
-          Settings
-        </button>
         <button
           style={{
             display: "flex",

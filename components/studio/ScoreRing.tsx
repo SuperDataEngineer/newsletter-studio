@@ -39,7 +39,9 @@ function barColor(value: number) {
 export function ScoreRing({ score }: { score: IssueScore }) {
   const radius = 46;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (score.total / 100) * circumference;
+  // Always derive total from subscores — never trust the stored/LLM value
+  const total = Object.values(score.scores).reduce((sum, s) => sum + (s.value ?? 0), 0);
+  const offset = circumference - (total / 100) * circumference;
 
   return (
     <div>
@@ -66,21 +68,16 @@ export function ScoreRing({ score }: { score: IssueScore }) {
             }}
           >
             <span style={{ fontSize: 32, fontWeight: 700, color: "var(--orange)", lineHeight: 1 }}>
-              {score.total}
+              {total}
             </span>
             <span style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>/100</span>
           </div>
         </div>
 
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: statusColor(score.status), marginBottom: 6 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: statusColor(score.status) }}>
             {statusLabel(score.status)}
           </div>
-          {score.recommendations.map((r, i) => (
-            <div key={i} style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5, marginBottom: 3 }}>
-              · {r}
-            </div>
-          ))}
         </div>
       </div>
 

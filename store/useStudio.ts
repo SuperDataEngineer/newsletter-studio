@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type {
   DraftSection,
   IssueScore,
@@ -70,8 +71,8 @@ const MOCK_SCORE: IssueScore = {
     readability: { value: 16, reason: "Concise sentences; no jargon without definition." },
   },
   recommendations: [
-    "Add a specific metric or statistic to the hook to raise executive impact.",
-    "Expand takeaways with one concrete action per bullet.",
+    { text: "Add a specific metric or statistic to raise executive impact.", section: "hook" },
+    { text: "Expand with one concrete action per takeaway bullet.", section: "takeaways" },
   ],
   status: "ready_with_refinements",
 };
@@ -79,8 +80,12 @@ const MOCK_SCORE: IssueScore = {
 // ── Store ────────────────────────────────────────────────────────────────────
 
 interface StudioState {
+  // Issue identity
+  issueId: string | null;
+
   // Issue config
   topic: string;
+  industry: string;
   newsletterType: string;
   audience: string;
   tone: string;
@@ -107,11 +112,14 @@ interface StudioState {
   activeSection: DraftSection;
   briefLoading: boolean;
   draftLoading: boolean;
+  scoreLoading: boolean;
   refiningSection: DraftSection | null;
   savedAt: string;
 
   // Actions
+  setIssueId: (id: string) => void;
   setTopic: (v: string) => void;
+  setIndustry: (v: string) => void;
   setNewsletterType: (v: string) => void;
   setAudience: (v: string) => void;
   setTone: (v: string) => void;
@@ -128,7 +136,10 @@ interface StudioState {
   setActiveSection: (s: DraftSection) => void;
   setBriefLoading: (v: boolean) => void;
   setDraftLoading: (v: boolean) => void;
+  setScoreLoading: (v: boolean) => void;
   setRefiningSection: (s: DraftSection | null) => void;
+  setSubjectLines: (lines: string[]) => void;
+  setPreviewTexts: (texts: string[]) => void;
   setBrief: (b: ResearchBrief | null) => void;
   setScore: (s: IssueScore | null) => void;
   setSavedAt: (v: string) => void;
@@ -137,8 +148,13 @@ interface StudioState {
   loadMockData: () => void;
 }
 
-export const useStudio = create<StudioState>((set) => ({
+export const useStudio = create<StudioState>()(
+  persist(
+    (set) => ({
+  issueId: null,
+
   topic: "How enterprise brands can improve AI search visibility in 2026, and what marketing leaders should know about generative discovery, citations, and answer-engine measurement.",
+  industry: "Technology & Software",
   newsletterType: "Insight / Analysis",
   audience: "Enterprise Leaders",
   tone: "Boardroom-ready, analytical",
@@ -165,10 +181,13 @@ export const useStudio = create<StudioState>((set) => ({
   activeSection: "hook",
   briefLoading: false,
   draftLoading: false,
+  scoreLoading: false,
   refiningSection: null,
   savedAt: "2m ago",
 
+  setIssueId: (id) => set({ issueId: id }),
   setTopic: (v) => set({ topic: v }),
+  setIndustry: (v) => set({ industry: v }),
   setNewsletterType: (v) => set({ newsletterType: v }),
   setAudience: (v) => set({ audience: v }),
   setTone: (v) => set({ tone: v }),
@@ -187,7 +206,10 @@ export const useStudio = create<StudioState>((set) => ({
   setActiveSection: (s) => set({ activeSection: s }),
   setBriefLoading: (v) => set({ briefLoading: v }),
   setDraftLoading: (v) => set({ draftLoading: v }),
+  setScoreLoading: (v) => set({ scoreLoading: v }),
   setRefiningSection: (s) => set({ refiningSection: s }),
+  setSubjectLines: (lines) => set({ subjectLines: lines }),
+  setPreviewTexts: (texts) => set({ previewTexts: texts }),
   setBrief: (b) => set({ brief: b }),
   setScore: (s) => set({ score: s }),
   setSavedAt: (v) => set({ savedAt: v }),
@@ -200,4 +222,31 @@ export const useStudio = create<StudioState>((set) => ({
       subjectLines: MOCK_DRAFT.subjectLines,
       previewTexts: MOCK_DRAFT.previewTexts,
     }),
-}));
+    }),
+    {
+      name: "newsletter-studio",
+      // Persist everything except transient loading flags
+      partialize: (state) => ({
+        issueId: state.issueId,
+        topic: state.topic,
+        industry: state.industry,
+        newsletterType: state.newsletterType,
+        audience: state.audience,
+        tone: state.tone,
+        length: state.length,
+        activeSources: state.activeSources,
+        companies: state.companies,
+        keywords: state.keywords,
+        title: state.title,
+        subtitle: state.subtitle,
+        draft: state.draft,
+        subjectLines: state.subjectLines,
+        previewTexts: state.previewTexts,
+        selectedSubjectIdx: state.selectedSubjectIdx,
+        brief: state.brief,
+        score: state.score,
+        savedAt: state.savedAt,
+      }),
+    }
+  )
+);

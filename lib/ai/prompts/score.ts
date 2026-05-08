@@ -18,7 +18,17 @@ export function buildScorePrompt(input: ScorePromptInput): { system: string; use
 **Brief context:** ${input.brief.slice(0, 400)}
 
 Score dimensions (0-20 each): originality, sourceStrength, executiveRelevance, clarity, readability.
-Return JSON: { total, scores: { originality: {value, reason}, ... }, recommendations: string[] (max 3), status: "ready"|"ready_with_refinements"|"needs_work" }`;
+
+For each recommendation, assign the section where the change must be made:
+- "hook" — fix the opening paragraph/hook
+- "body" — fix the main body content, arguments, data, or structure
+- "takeaways" — fix the key takeaways or bullets
+- "cta" — fix the call to action
+- "general" — ONLY use this if the issue truly spans every section equally (e.g. overall tone)
+
+Almost every recommendation targets a specific section. Default to the most relevant section, not "general".
+
+Return JSON: { total, scores: { originality: {value, reason}, ... }, recommendations: [{ text: string, section: "hook"|"body"|"takeaways"|"cta"|"general" }] (max 3), status: "ready"|"ready_with_refinements"|"needs_work" }`;
 
   return { system, user };
 }

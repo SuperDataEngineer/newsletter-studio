@@ -10,4 +10,5 @@ export function createClaudeClient() {
   });
 }
 
-export const MODEL = "claude-sonnet-4-5";
+export const MODEL = "claude-sonnet-4-6";
+export const MODEL_FAST = "claude-haiku-4-5-20251001";

@@ -4,6 +4,18 @@ import { Globe, Newspaper, FileText, BookOpen, Lock, Sparkles } from "lucide-rea
 import { useStudio } from "@/store/useStudio";
 import { TagInputSection } from "./TagInputSection";
 
+const INDUSTRIES = [
+  "Technology & Software",
+  "Financial Services & Banking",
+  "Healthcare & Life Sciences",
+  "Manufacturing & Industrials",
+  "Retail & Consumer Goods",
+  "Energy & Utilities",
+  "Telecommunications",
+  "Media & Entertainment",
+  "Not industry-specific",
+];
+
 const NEWSLETTER_TYPES = [
   "Insight / Analysis", "Weekly Digest", "Deep Dive", "Market Brief",
   "Competitive Intelligence", "Founder Note", "Executive Brief",
@@ -64,7 +76,9 @@ function Dropdown({
 
 export function LeftPanel() {
   const {
+    issueId, setIssueId,
     topic, setTopic,
+    industry, setIndustry,
     newsletterType, setNewsletterType,
     audience, setAudience,
     tone, setTone,
@@ -73,12 +87,44 @@ export function LeftPanel() {
     companies, addCompany, removeCompany,
     keywords, addKeyword, removeKeyword,
     briefLoading, setBriefLoading,
+    setBrief,
   } = useStudio();
 
-  const handleGenerateBrief = () => {
+  const handleGenerateBrief = async () => {
     setBriefLoading(true);
-    // TODO: call POST /api/issues/[id]/brief
-    setTimeout(() => setBriefLoading(false), 1200);
+    try {
+      const id = issueId ?? "new";
+      const res = await fetch(`/api/issues/${id}/brief`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic,
+          industry,
+          newsletterType,
+          audience,
+          tone,
+          length,
+          companies,
+          keywords,
+          sourcesEnabled: Object.entries(activeSources)
+            .filter(([, v]) => v)
+            .map(([k]) => k),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Brief generation failed");
+      }
+
+      const data = await res.json();
+      if (data.issueId) setIssueId(data.issueId);
+      setBrief(data.brief);
+    } catch (err) {
+      console.error("[brief]", err);
+    } finally {
+      setBriefLoading(false);
+    }
   };
 
   return (
@@ -115,6 +161,7 @@ export function LeftPanel() {
       <Dropdown label="Audience" value={audience} options={AUDIENCES} onChange={setAudience} />
       <Dropdown label="Tone" value={tone} options={TONES} onChange={setTone} />
       <Dropdown label="Length" value={length} options={LENGTHS} onChange={setLength} />
+      <Dropdown label="Industry" value={industry} options={INDUSTRIES} onChange={setIndustry} />
 
       {/* Company watchlist */}
       <TagInputSection

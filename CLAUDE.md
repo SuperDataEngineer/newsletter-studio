@@ -6,7 +6,7 @@ AI Research & Newsletter Studio. A 3-column web app that takes a topic + config,
 
 ## Current Status
 
-**Phase 1 complete.** Full UI shell built with mock data. All API routes stubbed. No real AI calls yet.
+**Phase 3 in progress.** Full AI pipeline wired (brief → draft → refine → score). Supabase running as demo DB. UI polished: DraftBlock redesigned, ScoreRing correct, state persists across refreshes. Next: HTML/PDF export, Recent Issues from real DB, autosave.
 
 ---
 
@@ -16,14 +16,14 @@ AI Research & Newsletter Studio. A 3-column web app that takes a topic + config,
 |---|---|---|
 | Framework | Next.js 14 (App Router) + TypeScript | Done |
 | UI | Tailwind CSS + custom design system | Done |
-| State | Zustand (workspace) + React Query (server) | Done — store seeded with mock data |
+| State | Zustand (workspace) + React Query (server) | Done — persist middleware added, survives refresh |
 | Forms | react-hook-form + zod | Schemas written, not yet wired |
 | Auth | AWS Cognito | **Deferred — wireframe exists, wire later** |
-| Database | AWS Aurora Serverless v2 (Postgres) | **Not yet created** |
+| Database | AWS Aurora Serverless v2 (Postgres) | **Not yet created** (Supabase demo running) |
 | Storage | AWS S3 | **Not yet created** |
-| LLM | Anthropic Claude (`@anthropic-ai/sdk`) | Client written, not yet called |
-| LLM fast | OpenAI GPT-4.1-mini (`openai`) | Client written, not yet called |
-| Search | Tavily (primary) + Exa (semantic fallback) | Adapters written, not yet called |
+| LLM | Anthropic Claude (`@anthropic-ai/sdk`) | Live — `claude-sonnet-4-6` for brief structuring |
+| LLM fast | Claude Haiku (`claude-haiku-4-5-20251001`) | Live — draft, refine, score (separate quota, no contention) |
+| Search | Perplexity `sonar-pro` (demo) → Tavily + Exa (prod) | Perplexity live, Tavily/Exa adapters written |
 | Crawling | Firecrawl | Adapter written, not yet called |
 | Job queue | AWS SQS | **Not yet created** |
 | Job workers | AWS Lambda | **Not yet created** |
@@ -50,8 +50,50 @@ Drizzle is TypeScript-native, lightweight, and generates migrations via `drizzle
 ### Job queue: SQS + Lambda
 Replaces Inngest. Brief generation and draft generation are enqueued to SQS; Lambda workers process them. EventBridge Scheduler handles the 6-hour company news cron.
 
-### AI: Anthropic Claude API only
-Using `claude-sonnet-4-6` for all drafting and research synthesis. GPT-4.1-mini kept for fast structured JSON tasks (scoring, keyword suggestions) because it's cheaper for high-frequency calls.
+### AI: Anthropic Claude — Sonnet for research, Haiku for fast tasks
+`claude-sonnet-4-6` structures the Perplexity research output into the BriefSchema. `claude-haiku-4-5-20251001` (`MODEL_FAST`) handles draft generation, section refinement, and scoring — it has a separate TPM quota so Sonnet rate limits don't block fast actions. GPT-4.1-mini (originally planned for scoring) is currently unused; Haiku is cheaper and already available.
+
+**Score arithmetic rule:** Never trust the LLM's reported `total` field. Recalculate from subscores in two places: (1) API route before persisting to Supabase, (2) `ScoreRing` at render time. This prevents stale/wrong values from showing even if localStorage has old data.
+
+### Research: Perplexity Sonar + Claude Haiku (demo) → Tavily + Firecrawl (production)
+
+**Decision:** Two-step pipeline — Perplexity Sonar Pro does the web research and returns citations; Claude Haiku structures the output into our JSON schema.
+
+**Step 1:** `lib/research/perplexity.ts` → Perplexity `sonar-pro` model, OpenAI-compatible API
+**Step 2:** `lib/ai/prompts/brief.ts` `buildBriefStructurePrompt` → Claude Haiku structures into BriefSchema
+
+**Pros:**
+- Much cheaper than Claude Sonnet web_search (~$1/1M tokens vs $3/1M)
+- Higher rate limits — Perplexity and Haiku have separate quotas, no contention
+- Better search quality than Brave Search — Perplexity's index is purpose-built for recency
+- Citations returned automatically as a `citations[]` array — no parsing needed
+- Uses existing `openai` package (Perplexity is OpenAI-compatible)
+
+**Cons:**
+- Two API keys needed (ANTHROPIC + PPLX)
+- Still no full-page crawling — Perplexity returns snippets, not full article text
+- Credibility ranker (`lib/research/rank.ts`) still bypassed
+- Lower quality than Tavily + Firecrawl (no full content, less control over source selection)
+
+**Migration path:** Replace `researchWithPerplexity()` call in `generateBrief.ts` with Tavily search + Firecrawl crawl + credibility rank. The Haiku structuring step and everything downstream stays unchanged.
+
+---
+
+## Demo → Production: What Replaces What
+
+When moving from the Supabase demo to the full AWS-native stack, here is the exact swap map:
+
+| Demo (now) | Production (AWS) | Migration effort |
+|---|---|---|
+| **Supabase Postgres** | **Aurora Serverless v2** (Postgres 15) | Low — same schema, swap connection string, replace Supabase client with Drizzle + `pg` |
+| **Supabase anon/service role keys** | **IAM auth** via `aws-sdk` + `rds-signer` | Medium — add IAM role to Lambda + Next.js task, remove Supabase client |
+| **Next.js API route handles brief/draft inline** | **SQS + Lambda workers** (`newsletter-brief-worker`, `newsletter-draft-worker`) | High — extract logic from API routes into Lambda handlers, add SQS enqueue/poll |
+| **No background jobs** | **EventBridge Scheduler** every 6h | Low — wire `companies/news` cron trigger |
+| **No file storage** | **S3** (`newsletter-studio-exports`) | Low — swap `fs` write with `s3.putObject` in export routes |
+| **No auth** | **AWS Cognito** | Medium — add Cognito User Pool, wire JWT to API routes, add RLS policies |
+| **Claude web_search (Brave)** | **Tavily + Firecrawl + credibility ranker** | Medium — replace search step in `generateBrief.ts`, adapters already written |
+| **No observability** | **Helicone** (LLM cost tracking) | Low — add `Helicone-Auth` header to all Claude/OpenAI calls |
+| **AWS Amplify deploy** | **AWS Amplify deploy** (unchanged) | None |
 
 ---
 
@@ -118,16 +160,18 @@ app/
     companies/news/     # POST → watchlist news fetch
 
 components/studio/      # All UI components (ported from mockup)
-  StudioShell.tsx       # Root layout
+  StudioShell.tsx       # Root layout — hydration-gated (no flash on refresh)
   Topbar.tsx
   LeftPanel.tsx         # Issue config, topic, tags, sources
   CenterPanel.tsx       # Research brief + newsletter draft
   RightPanel.tsx        # Score ring, exports, recent issues
-  DraftBlock.tsx        # 3-col grid: label | textarea | action chips
-  ScoreRing.tsx         # SVG ring + subscore bars
-  SourceCard.tsx        # Source card (3-col grid in center panel)
+  DraftBlock.tsx        # Stacked: header + textarea + color-coded action pills
+  ScoreRing.tsx         # SVG ring + subscore bars — total derived from subscores
+  SourceCard.tsx        # Source card — deterministic per-domain color from 15-color palette
   TagInputSection.tsx   # Pill tag input with company/keyword variants
   ExportTile.tsx        # Vertical export tile
+  CustomEditModal.tsx   # Custom instruction modal with section-specific example prompts
+  SectionExpandModal.tsx # Full-screen (92vw × 90vh) section reading/editing modal
 
 lib/
   ai/
@@ -145,8 +189,8 @@ lib/
     queries/            # TODO: Drizzle query functions
     schema.ts           # TODO: Drizzle schema (mirrors SQL in IMPLEMENTATION_PLAN.md §6)
   workflows/
-    generateBrief.ts    # TODO: SQS message handler
-    generateDraft.ts    # TODO: SQS message handler
+    generateBrief.ts    # Live — Perplexity → Claude Haiku → Supabase
+    generateDraft.ts    # Live — Claude Haiku, word-target aware, persists to Supabase
     inngestClient.ts    # DELETE — leftover from original plan, replaced by SQS
   export/
     markdown.ts         # Draft → .md (implemented)
@@ -154,7 +198,11 @@ lib/
     html.ts             # TODO: React Email template
 
 store/
-  useStudio.ts          # Zustand store — seeded with mock data from original mockup
+  useStudio.ts          # Zustand store — persist middleware (localStorage), partialize excludes loading flags
+
+hooks/
+  useHydration.ts       # Gates render until Zustand localStorage rehydration completes
+  useScoring.ts         # Calls /score API, updates store, exposes scoreNow + scoreLoading
 ```
 
 ---
@@ -163,23 +211,29 @@ store/
 
 | Thing | Status |
 |---|---|
-| UI shell, all components | **Real — renders from mock data** |
-| Zustand store | **Real — full state shape, mock fixtures** |
-| All API routes | **Stub — return fixtures or empty arrays** |
+| UI shell, all components | **Real — DraftBlock redesigned, ScoreRing corrected, modals added** |
+| Zustand store | **Real — persist middleware, survives refresh, no flash** |
+| Brief API + workflow | **Real — Perplexity sonar-pro → Claude Haiku → Supabase** |
+| Draft API + workflow | **Real — Claude Haiku, word-target, title/subtitle persisted** |
+| Refine API | **Real — 14 actions + custom instruction, Claude Haiku** |
+| Score API | **Real — Claude Haiku, total recalculated server-side** |
 | Zod schemas | **Real — validated shapes for all AI outputs** |
 | Prompt builders | **Real — production-quality prompts written** |
-| Tavily / Exa / Firecrawl adapters | **Real — just need API keys** |
+| Perplexity research | **Real — sonar-pro, needs PPLX_API_KEY** |
+| Tavily / Exa / Firecrawl adapters | **Real — adapters written, keys not yet wired** |
 | Credibility ranker | **Real — deterministic, no dependencies** |
-| Anthropic client | **Real — needs ANTHROPIC_API_KEY** |
-| OpenAI client | **Real — needs OPENAI_API_KEY** |
-| DB client | **Stub — Supabase placeholder, replace with Drizzle** |
+| Anthropic client | **Real — live, ANTHROPIC_API_KEY set** |
+| OpenAI client | **Real — available, currently unused (Haiku handles fast tasks)** |
+| DB client | **Supabase demo — replace with Drizzle + Aurora** |
 | SQS queue client | **Not written yet** |
 | Lambda workers | **Not written yet** |
 | Drizzle schema + migrations | **Not written yet** |
 | Auth (Cognito) | **Deferred — wireframe only** |
 | PDF export | **Stub** |
-| Markdown export | **Real** |
+| Markdown export | **Real — client-side download** |
 | HTML export | **Stub** |
+| Copy export | **Real — includes subject line + preview text** |
+| Recent Issues | **Mock data — replace with real DB query** |
 
 ---
 
@@ -188,29 +242,37 @@ store/
 ### Phase 1 — Skeleton ✅ DONE
 Next.js scaffold, full UI ported from mockup, Zustand store, all API routes stubbed, design fixes applied.
 
-### Phase 2 — Database + Queue Infrastructure (next)
+### Phase 2 — AI Pipeline ✅ DONE
+- Perplexity sonar-pro + Claude Haiku two-step research pipeline
+- Draft generation (Haiku, word-target aware, title/subtitle persisted)
+- Section refinement — 14 actions + custom instruction modal
+- Score API — Haiku, subscores recalculated server-side
+- Zustand persist middleware — state survives refresh, no hydration flash
+- UI: DraftBlock redesigned (color-coded pills, Expand modal, Custom Edit modal)
+- UI: ScoreRing corrected (total derived from subscores, never from LLM output)
+- UI: SourceCard per-domain color coding, actionable feedback collapsible toggle
+
+### Phase 3 — Exports + Persistence (current)
+- [ ] Autosave: debounced PATCH on every keystroke
+- [ ] Recent Issues from real Supabase query (replace mock data in RightPanel)
+- [ ] HTML export (`lib/export/html.ts`)
+- [ ] PDF export (`@react-pdf/renderer`)
+
+### Phase 4 — Database + Queue Infrastructure
 - Replace `lib/db/client.ts` with Drizzle + Aurora Serverless v2
 - Write Drizzle schema mirroring `IMPLEMENTATION_PLAN.md §6`
 - Run first migration
 - Write SQS client in `lib/queue/sqs.ts`
 - Delete `lib/workflows/inngestClient.ts` (leftover Inngest reference)
 
-### Phase 3 — Research Pipeline
-- Wire `POST /api/issues/[id]/brief` → enqueue to SQS
-- Lambda worker: Tavily → Firecrawl → credibility rank → Claude → store brief
+### Phase 5 — Production Research Pipeline
+- Replace `researchWithPerplexity()` with Tavily search + Firecrawl crawl + credibility rank
 - SSE stream: progress events back to client (`fetching sources` → `scoring` → `synthesizing` → `done`)
-- Source cards render from real data
+- Haiku structuring step and everything downstream stays unchanged
 
-### Phase 4 — Drafting + Refinement
-- Wire `POST /api/issues/[id]/draft` → Claude stream with `<<<HOOK>>>` delimiter convention
-- Draft blocks populate from stream tokens
-- Action chips wire to `/api/issues/[id]/refine` (synchronous, GPT-4.1-mini for short actions)
-- Autosave: debounced PATCH on every keystroke
-
-### Phase 5 — Scoring + Exports
-- Score ring driven by real GPT-4.1-mini JSON
-- PDF export via `@react-pdf/renderer`
-- Recent issues from real DB query
+### Phase 6 — Watchlist + Cron
+- EventBridge Scheduler triggers company news refresh Lambda every 6h
+- Keyword auto-suggest wired to Haiku
 
 ### Phase 6 — Watchlist + Cron
 - EventBridge Scheduler triggers company news refresh Lambda every 6h
@@ -232,3 +294,5 @@ Next.js scaffold, full UI ported from mockup, Zustand store, all API routes stub
 - Autosave is debounced 600ms PATCH — never block the user
 - The mockup files (`studio.jsx`, `studio.css`, `AI Research & Newsletter Studio.html`) stay in the repo as the visual reference contract
 - Never break the 3-column layout — it is the core UX
+- **Score total must always be derived from subscores** — never render or persist `score.total` from the LLM. Recalculate in the API route before Supabase write, and again in `ScoreRing` at render time
+- **Hydration gate** — any component that reads Zustand state on first render must be gated behind `useHydration()` to prevent a flash of mock default data before localStorage rehydrates

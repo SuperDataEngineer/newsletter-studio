@@ -6,6 +6,7 @@ export interface NewsletterIssue {
   title: string | null;
   subtitle: string | null;
   topic: string;
+  industry: string;
   newsletterType: string;
   audience: string;
   tone: string;
@@ -70,10 +71,15 @@ export interface ScoreSubscores {
   readability: ScoreSubscore;
 }
 
+export interface Recommendation {
+  text: string;
+  section: "hook" | "body" | "takeaways" | "cta" | "general";
+}
+
 export interface IssueScore {
   total: number;
   scores: ScoreSubscores;
-  recommendations: string[];
+  recommendations: Recommendation[];
   status: "ready" | "ready_with_refinements" | "needs_work";
 }
 

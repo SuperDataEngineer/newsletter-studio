@@ -9,18 +9,33 @@ const DOMAIN_COLORS: Record<string, string> = {
   "bcg.com": "#0E6A47",
   "openai.com": "#0F0F0F",
   "deloitte.com": "#0E4A2F",
-  "wsj.com": "#1E1E1E",
+  "wsj.com": "#C8553D",
   "ft.com": "#C8553D",
   "bloomberg.com": "#1A1A1A",
 };
 
+const PALETTE = [
+  "#2D6FE0", "#0E6A47", "#C8553D", "#7C3AED", "#0E7490",
+  "#B45309", "#1D4ED8", "#065F46", "#9D174D", "#1E40AF",
+  "#4D7C0F", "#6D28D9", "#0369A1", "#92400E", "#166534",
+];
+
+function domainColor(domain: string): string {
+  if (DOMAIN_COLORS[domain]) return DOMAIN_COLORS[domain];
+  let hash = 0;
+  for (let i = 0; i < domain.length; i++) {
+    hash = (hash * 31 + domain.charCodeAt(i)) >>> 0;
+  }
+  return PALETTE[hash % PALETTE.length];
+}
+
 function domainInitials(domain: string) {
-  const name = domain.replace(/\.(com|org|gov|net)$/, "").split(".").pop() ?? domain;
+  const name = domain.replace(/\.(com|org|gov|net|io|co)$/, "").split(".").pop() ?? domain;
   return name.slice(0, 2).toUpperCase();
 }
 
 export function SourceCard({ source }: { source: ResearchSource }) {
-  const color = DOMAIN_COLORS[source.domain] ?? "#334155";
+  const color = domainColor(source.domain);
 
   return (
     <a
