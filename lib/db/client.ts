@@ -8,10 +8,10 @@ export function createBrowserClient() {
   );
 }
 
-// Server client — uses service role key, bypasses RLS (API routes only)
+// Server client — uses anon key (RLS is disabled on all tables)
 export function createServerClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 }
