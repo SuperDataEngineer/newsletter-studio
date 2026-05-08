@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, Upload, Check } from "lucide-react";
+import { Upload, Check } from "lucide-react";
 import { useStudio } from "@/store/useStudio";
 
 const NAV_TABS = ["Workspace", "History", "Templates", "Settings"] as const;
@@ -48,11 +48,14 @@ export function Topbar() {
         <div
           style={{
             width: 36, height: 36, borderRadius: 8,
-            background: "var(--orange-soft)",
+            background: "#0f1117",
             display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
           }}
         >
-          <BookOpen size={18} color="var(--orange)" />
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 56 56" fill="none">
+            <path d="M8 30 H 16 L 20 18 L 28 42 L 33 26 L 38 30 L 48 30" stroke="#f04b13" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+          </svg>
         </div>
         <span style={{ fontWeight: 600, fontSize: 16, letterSpacing: "-0.01em" }}>
           Newsletter Studio
