@@ -52,7 +52,7 @@ export async function processBriefJob(payload: BriefJobPayload): Promise<Researc
 
   const response = await client.messages.create({
     model: MODEL_FAST,
-    max_tokens: 4000,
+    max_tokens: 1500,
     system,
     messages: [{ role: "user", content: user }],
   });

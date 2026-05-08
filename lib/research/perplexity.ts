@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 
 // Perplexity uses an OpenAI-compatible API — reuse the openai package
-const SONAR_MODEL = "sonar-pro";
+const SONAR_MODEL = "sonar";
 
 export interface PerplexityResult {
   content: string;
@@ -27,21 +27,16 @@ export async function researchWithPerplexity(
 
   const sourceGuidance = buildSourceGuidance(config.sourcesEnabled);
 
-  const prompt = `Research the following topic for a newsletter and provide a comprehensive synthesis.
+  const prompt = `Research this newsletter topic. Be concise — 300-400 words max.
 
 Topic: ${topic}
 Industry: ${config.industry}
-Newsletter Type: ${config.newsletterType}
-Target Audience: ${config.audience}
-${config.companies.length ? `Companies to track: ${config.companies.join(", ")}` : ""}
-${config.keywords.length ? `Keywords to cover: ${config.keywords.join(", ")}` : ""}
+Audience: ${config.audience}
+${config.companies.length ? `Companies: ${config.companies.join(", ")}` : ""}
+${config.keywords.length ? `Keywords: ${config.keywords.join(", ")}` : ""}
 ${sourceGuidance}
 
-Provide:
-- A synthesis of the most important recent developments and findings
-- Key statistics, data points, and expert perspectives
-- Any contradictions or competing viewpoints in the literature
-- Focus on content from the last 12 months where possible`;
+Return: 3-5 key findings with statistics, 1-2 expert perspectives, any notable contradictions. Recent sources preferred.`;
 
   // Perplexity extends the OpenAI response with a citations field
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
