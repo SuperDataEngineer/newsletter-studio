@@ -4,10 +4,13 @@ import { Topbar } from "./Topbar";
 import { LeftPanel } from "./LeftPanel";
 import { CenterPanel } from "./CenterPanel";
 import { RightPanel } from "./RightPanel";
+import { HistoryPanel } from "./HistoryPanel";
 import { useHydration } from "@/hooks/useHydration";
+import { useStudio } from "@/store/useStudio";
 
 export function StudioShell() {
   const hydrated = useHydration();
+  const currentTab = useStudio((s) => s.currentTab);
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--bg)" }}>
@@ -19,6 +22,8 @@ export function StudioShell() {
         }}>
           Loading workspace…
         </div>
+      ) : currentTab === "History" ? (
+        <HistoryPanel />
       ) : (
         <div
           style={{

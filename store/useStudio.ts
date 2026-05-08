@@ -109,6 +109,7 @@ interface StudioState {
   score: IssueScore | null;
 
   // UI state
+  currentTab: "Workspace" | "History" | "Templates" | "Settings";
   activeSection: DraftSection;
   briefLoading: boolean;
   draftLoading: boolean;
@@ -133,6 +134,7 @@ interface StudioState {
   setSubtitle: (v: string) => void;
   setDraftSection: (section: DraftSection, text: string) => void;
   setSelectedSubjectIdx: (i: number) => void;
+  setCurrentTab: (t: "Workspace" | "History" | "Templates" | "Settings") => void;
   setActiveSection: (s: DraftSection) => void;
   setBriefLoading: (v: boolean) => void;
   setDraftLoading: (v: boolean) => void;
@@ -143,6 +145,37 @@ interface StudioState {
   setBrief: (b: ResearchBrief | null) => void;
   setScore: (s: IssueScore | null) => void;
   setSavedAt: (v: string) => void;
+
+  // Issue management
+  resetWorkspace: () => void;
+  loadFromHistory: (data: {
+    issueId: string;
+    topic: string;
+    industry: string;
+    newsletterType: string;
+    audience: string;
+    tone: string;
+    length: string;
+    companies: string[];
+    keywords: string[];
+    title: string | null;
+    subtitle: string | null;
+    brief: ResearchBrief | null;
+    draft: Pick<NewsletterDraft, "hook" | "body" | "takeaways" | "cta"> | null;
+    subjectLines: string[];
+    previewTexts: string[];
+    score: IssueScore | null;
+  }) => void;
+  cloneConfig: (data: {
+    topic: string;
+    industry: string;
+    newsletterType: string;
+    audience: string;
+    tone: string;
+    length: string;
+    companies: string[];
+    keywords: string[];
+  }) => void;
 
   // Seed mock data
   loadMockData: () => void;
@@ -178,6 +211,7 @@ export const useStudio = create<StudioState>()(
   brief: MOCK_BRIEF,
   score: MOCK_SCORE,
 
+  currentTab: "Workspace",
   activeSection: "hook",
   briefLoading: false,
   draftLoading: false,
@@ -203,6 +237,7 @@ export const useStudio = create<StudioState>()(
   setDraftSection: (section, text) =>
     set((s) => ({ draft: { ...s.draft, [section]: text } })),
   setSelectedSubjectIdx: (i) => set({ selectedSubjectIdx: i }),
+  setCurrentTab: (t) => set({ currentTab: t }),
   setActiveSection: (s) => set({ activeSection: s }),
   setBriefLoading: (v) => set({ briefLoading: v }),
   setDraftLoading: (v) => set({ draftLoading: v }),
@@ -213,6 +248,61 @@ export const useStudio = create<StudioState>()(
   setBrief: (b) => set({ brief: b }),
   setScore: (s) => set({ score: s }),
   setSavedAt: (v) => set({ savedAt: v }),
+
+  resetWorkspace: () =>
+    set({
+      issueId: null,
+      title: "",
+      subtitle: "",
+      draft: { hook: "", body: "", takeaways: "", cta: "" },
+      subjectLines: [],
+      previewTexts: [],
+      brief: null,
+      score: null,
+      currentTab: "Workspace",
+    }),
+
+  loadFromHistory: (data) =>
+    set({
+      issueId: data.issueId,
+      topic: data.topic,
+      industry: data.industry ?? "Not industry-specific",
+      newsletterType: data.newsletterType,
+      audience: data.audience,
+      tone: data.tone,
+      length: data.length,
+      companies: data.companies ?? [],
+      keywords: data.keywords ?? [],
+      title: data.title ?? "",
+      subtitle: data.subtitle ?? "",
+      brief: data.brief,
+      draft: data.draft ?? { hook: "", body: "", takeaways: "", cta: "" },
+      subjectLines: data.subjectLines,
+      previewTexts: data.previewTexts,
+      score: data.score,
+      currentTab: "Workspace",
+    }),
+
+  cloneConfig: (data) =>
+    set({
+      issueId: null,
+      topic: data.topic,
+      industry: data.industry ?? "Not industry-specific",
+      newsletterType: data.newsletterType,
+      audience: data.audience,
+      tone: data.tone,
+      length: data.length,
+      companies: data.companies ?? [],
+      keywords: data.keywords ?? [],
+      title: "",
+      subtitle: "",
+      draft: { hook: "", body: "", takeaways: "", cta: "" },
+      subjectLines: [],
+      previewTexts: [],
+      brief: null,
+      score: null,
+      currentTab: "Workspace",
+    }),
 
   loadMockData: () =>
     set({

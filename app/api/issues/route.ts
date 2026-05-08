@@ -1,14 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@/lib/db/client";
 
-// POST /api/issues — create a new issue
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  // TODO: validate with zod, insert into supabase, return issue
   return NextResponse.json({ id: crypto.randomUUID(), ...body }, { status: 201 });
 }
 
-// GET /api/issues — list issues for the current user
-export async function GET() {
-  // TODO: query supabase with auth context
-  return NextResponse.json({ issues: [] });
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const status = searchParams.get("status");
+
+    const db = createServerClient();
+    let query = db
+      .from("newsletter_issues")
+      .select("id, title, topic, status, score, created_at, updated_at")
+      .order("updated_at", { ascending: false });
+
+    if (status) query = query.eq("status", status);
+    else query = query.in("status", ["draft", "review", "published"]);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return NextResponse.json({ issues: data ?? [] });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

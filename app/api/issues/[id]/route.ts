@@ -1,20 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@/lib/db/client";
 
-// GET /api/issues/[id]
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  // TODO: fetch from supabase, check ownership
-  return NextResponse.json({ id: params.id });
+  try {
+    const db = createServerClient();
+    const { data, error } = await db
+      .from("newsletter_issues")
+      .select("*")
+      .eq("id", params.id)
+      .single();
+    if (error) throw error;
+    return NextResponse.json(data);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
-// PATCH /api/issues/[id] — autosave
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const body = await req.json();
-  // TODO: validate, update supabase, return { updatedAt, version }
-  return NextResponse.json({ id: params.id, updatedAt: new Date().toISOString(), ...body });
+  try {
+    const body = await req.json();
+    const db = createServerClient();
+    const { error } = await db
+      .from("newsletter_issues")
+      .update({ ...body, updated_at: new Date().toISOString() })
+      .eq("id", params.id);
+    if (error) throw error;
+    return NextResponse.json({ id: params.id, updatedAt: new Date().toISOString() });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
-// DELETE /api/issues/[id]
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  // TODO: soft-delete in supabase
-  return NextResponse.json({ deleted: params.id });
+  try {
+    const db = createServerClient();
+    const { error } = await db
+      .from("newsletter_issues")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .eq("id", params.id);
+    if (error) throw error;
+    return NextResponse.json({ deleted: params.id });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

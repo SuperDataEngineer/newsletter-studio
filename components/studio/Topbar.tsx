@@ -1,10 +1,35 @@
 "use client";
 
-import { BookOpen, Upload } from "lucide-react";
+import { useState } from "react";
+import { BookOpen, Upload, Check } from "lucide-react";
+import { useStudio } from "@/store/useStudio";
 
-const NAV_TABS = ["Workspace", "History", "Templates", "Settings"];
+const NAV_TABS = ["Workspace", "History", "Templates", "Settings"] as const;
 
 export function Topbar() {
+  const { issueId, currentTab, setCurrentTab } = useStudio();
+  const [publishing, setPublishing] = useState(false);
+  const [published, setPublished] = useState(false);
+
+  const handlePublish = async () => {
+    if (!issueId || publishing) return;
+    setPublishing(true);
+    try {
+      await fetch(`/api/issues/${issueId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "published" }),
+      });
+      setPublished(true);
+      setTimeout(() => {
+        setPublished(false);
+        setCurrentTab("History");
+      }, 1200);
+    } catch { /* silent */ } finally {
+      setPublishing(false);
+    }
+  };
+
   return (
     <header
       style={{
@@ -22,13 +47,9 @@ export function Topbar() {
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <div
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 8,
+            width: 36, height: 36, borderRadius: 8,
             background: "var(--orange-soft)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            display: "flex", alignItems: "center", justifyContent: "center",
           }}
         >
           <BookOpen size={18} color="var(--orange)" />
@@ -40,57 +61,59 @@ export function Topbar() {
 
       {/* Nav */}
       <nav style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        {NAV_TABS.map((tab) => (
-          <button
-            key={tab}
-            style={{
-              position: "relative",
-              padding: "10px 18px",
-              fontSize: 14,
-              fontWeight: tab === "Workspace" ? 600 : 500,
-              color: tab === "Workspace" ? "var(--orange)" : "var(--muted)",
-              borderRadius: 6,
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            {tab}
-            {tab === "Workspace" && (
-              <span
-                style={{
-                  position: "absolute",
-                  left: 18,
-                  right: 18,
-                  bottom: -2,
-                  height: 2,
-                  background: "var(--orange)",
-                  borderRadius: 2,
-                }}
-              />
-            )}
-          </button>
-        ))}
+        {NAV_TABS.map((tab) => {
+          const active = currentTab === tab;
+          return (
+            <button
+              key={tab}
+              onClick={() => setCurrentTab(tab)}
+              style={{
+                position: "relative",
+                padding: "10px 18px",
+                fontSize: 14,
+                fontWeight: active ? 600 : 500,
+                color: active ? "var(--orange)" : "var(--muted)",
+                borderRadius: 6,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              {tab}
+              {active && (
+                <span
+                  style={{
+                    position: "absolute",
+                    left: 18, right: 18, bottom: -2,
+                    height: 2,
+                    background: "var(--orange)",
+                    borderRadius: 2,
+                  }}
+                />
+              )}
+            </button>
+          );
+        })}
       </nav>
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center" }}>
         <button
+          onClick={handlePublish}
+          disabled={!issueId || publishing || published}
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "8px 14px",
-            borderRadius: 8,
-            background: "var(--orange)",
-            border: "none",
-            color: "#fff",
-            fontWeight: 600,
-            fontSize: 13.5,
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "8px 14px", borderRadius: 8,
+            background: published ? "var(--green)" : publishing ? "var(--muted-2)" : "var(--orange)",
+            border: "none", color: "#fff",
+            fontWeight: 600, fontSize: 13.5,
+            cursor: !issueId || publishing || published ? "not-allowed" : "pointer",
+            transition: "background 0.2s",
+            opacity: !issueId ? 0.5 : 1,
           }}
         >
-          <Upload size={15} />
-          Publish
+          {published ? <Check size={15} /> : <Upload size={15} />}
+          {published ? "Published!" : publishing ? "Publishing…" : "Publish"}
         </button>
       </div>
     </header>
