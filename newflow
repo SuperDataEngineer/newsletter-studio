@@ -1,0 +1,66 @@
+Here's a solution outline for this feature, broken into the pieces that matter: search, selection, deletion lifecycle, and the unsubscribe interaction.
+
+1. Input Layer
+
+Accept three input modes into one normalized pipeline:
+
+Single email — validated inline, immediate search
+Email list (pasted, comma/newline separated) — parsed client-side or server-side
+CSV upload — pushed to S3, parsed by a Lambda (handles large batches without blocking the UI)
+
+All paths funnel into a normalized list: lowercase, trimmed, deduped, format-validated. Invalid rows get flagged back to the user rather than silently dropped (important for audit trail — you want to show "these 3 rows were malformed and not searched").
+
+For large CSVs (thousands of rows), queue individual emails via SQS and process asynchronously with a job ID the user can poll/check back on, rather than a synchronous blocking search.
+
+2. Search Layer — the tricky part
+
+DynamoDB (last 3 months, "hot" data):
+Don't scan. If email isn't already a key, add a GSI on email so lookups are direct queries, not table scans (scans get expensive and slow fast at any real volume). If leads/records are keyed by lead ID and email is just an attribute, this GSI is the thing that makes the whole feature viable at scale.
+
+S3 (3+ months, archived data):
+This is the harder half. Once data ages out of DynamoDB it's presumably exported to S3 as batch files (JSON/Parquet). Two options:
+
+Maintain a lookup index — a lightweight DynamoDB table (email_hash → [S3 keys / archive dates]) populated at archive-time. This gives you O(1) lookup into S3 without scanning objects.
+Amazon Athena — query S3 directly with SQL if the data is partitioned sensibly (e.g., by date). Simpler to build, slower per-query, fine if search volume is low.
+
+The lookup-index approach scales better if this becomes a frequent workflow; Athena is faster to ship. Worth deciding based on expected query volume.
+
+Aggregation: merge DynamoDB + S3 results into one result set per email: source system, record type (lead record, campaign event, message log, etc.), date, and storage location — this is what gets shown to the user before they select anything.
+
+3. Deletion Workflow
+Search → Select records → Submit deletion request
+   → [Grace Period: 30 days, soft-deleted/flagged]
+       → Reverted → restored to normal state
+       → Not reverted → Hard delete job runs → Confirmed
+Soft delete on submit: flag the record (e.g., pending_deletion: true, deletion_requested_at, scheduled_purge_date). Data is hidden from active workflows (routing, campaigns, reporting) immediately but not physically removed.
+Revert: within 30 days, a "Pending Deletions" view lets the user (or an admin) cancel — clears the flag, record returns to normal.
+Hard delete: an EventBridge scheduled job checks daily for requests past their 30-day mark and not reverted, then actually purges from DynamoDB and S3.
+Audit trail: keep a permanent record of that a deletion happened (request ID, who requested it, timestamp, email hash — not the PII itself) even after the underlying data is purged. Most privacy regs (GDPR, CCPA) expect you to be able to prove deletion occurred, so this record should survive the purge.
+4. Unsubscribe Interaction — this is the part people usually get wrong
+
+Deletion and unsubscribe are not the same thing and shouldn't be conflated:
+
+Unsubscribe = stop sending marketing communications. The email typically needs to stay on a suppression list indefinitely — otherwise if that lead gets re-imported later (new CSV, CRM sync, form fill), you'd have no record they opted out, and you'd email them again. That's a compliance problem in itself (CAN-SPAM/CASL).
+Deletion request = remove the underlying PII/record entirely.
+
+The conflict: if you fully delete someone's data, you lose the evidence that they unsubscribed. The standard pattern is:
+
+When a deletion request is processed, retain a minimal suppression entry (just a hashed email + "do not contact" flag, no other PII) separately from the deleted record.
+At lead-ingestion time (new CSV upload, form fill, CRM sync), check incoming emails against this suppression list and block/flag matches before they re-enter the routing pipeline.
+Make clear in the UI when a user requests deletion: "This will remove the lead's data. They will remain on the do-not-contact list unless you separately reactivate them." Otherwise support staff will be surprised when a "deleted" contact still can't be emailed.
+
+This suppression list is arguably a separate small system from the main deletion workflow — small, durable, checked on ingest, and explicitly exempt from the same purge logic.
+
+A few open questions worth pinning down before build:
+
+Does "revert" need admin approval, or can the original requester self-revert?
+Do transactional records (not marketing) get the same deletion treatment, or are they exempt (many regs allow retaining data needed for legal/contractual obligations)?
+What's the actual SLA — is 30 days the grace period before deletion, or the legal deadline to complete deletion (GDPR's "without undue delay and within one month" would mean the grace period eats into your compliance deadline, not sit on top of it)?
+
+Want me to turn this into a proper doc (with a sequence diagram for the deletion state machine) or start sketching the DynamoDB/S3 schema for the search index?
+
+create a flow chart as well here
+
+That's the core deletion lifecycle. Now here's how the unsubscribe/suppression check fits alongside it — this is a separate, permanent path that doesn't get purged with the rest of the data.
+
+The key thing both diagrams together show: the deletion pipeline and the suppression list are two separate lifecycles. One purges data on a 30-day clock and can be reverted. The other is a small, permanent record that survives the purge and gets checked every time a lead re-enters the system — otherwise a "deleted" contact could get re-added and emailed again without anyone knowing they'd opted out.
